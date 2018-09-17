@@ -192,3 +192,21 @@ def nandsquare(n):
 
     # "compiles" your completed program as a NAND program string.
     return str(prog)
+
+
+def EVAL(prog,x):
+    n = max([int(var[2:]) for var in prog.split() if var[:2]=='x_' ])+1 # no of inputs
+    m = max([int(var[2:]) for var in prog.split() if var[:2]=='y_' ])+1 # no of outputs
+
+    varsval = { } # dictionary of value of "workspace" variables
+    for i in range(n):
+        varsval['x_'+str(i)] = int(x[i])
+    for j in range(m):
+        varsval['y_'+str(j)] = 0
+
+    for line in prog.split('\n'):
+        if not line.strip() or line[0]=='#' or line[0]=='//': continue # ignore empty and commented out lines
+        (var1, assign, var2, op, var3) = line.split()
+        varsval[var1] = 1 - varsval.get(var2, 0) * varsval.get(var3, 0)
+
+    return ''.join( str(varsval['y_'+str(j)]) for j in range(m))
