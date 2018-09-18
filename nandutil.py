@@ -19,12 +19,25 @@ def parse_tuple(string):
 def NAND(a, b):
     return (1-int(a)*int(b))
 
+def TRUTH(prog):
+    n,m = numinout(prog)
+    if(n > 6):
+        raise ValueError('Please limit your program input to 6 bits') 
+
+    print("In" + " "*(n + m ) + "Out")
+    print("-" * (n + m + 5))
+    for i in range(2**n):
+        prog_in = (str(bin(i))[2:])[::-1]
+        prog_in = prog_in + '0' * (n - len(prog_in))
+        print prog_in + " |   " + EVAL(prog, prog_in)
+
 def EVAL(prog,x):
     """Evaluate NAND program prog with n inputs and m outputs on input x."""
     n,m = numinout(prog)
     vartable = {} # dictionary for variables
 
     for i in range(n): vartable['X[{}]'.format(i)]=int(x[i]) # assign x[i] to variable "X[i]"
+    for i in range(m): vartable['Y[{}]'.format(i)]=0 # assign 0 to variable "Y[i]"
     for line in prog.split('\n'): # split code into lines
         if not(line): continue  # ignore empty lines
 
@@ -57,9 +70,10 @@ class NANDProgram(object):
     '''Builds a NAND Program in a declarative format. Some examples will be
     shown at the end of this file. Outputs the program as a string by using the
     builtin str()'''
-    def __init__(self, num_inputs, num_outputs):
+    def __init__(self, num_inputs, num_outputs, debug = False):
         self._num_inputs = num_inputs
         self._num_outputs = num_outputs
+        self._debug_enabled = debug
         if num_inputs < 1 or num_outputs < 1:
             raise ValueError("Trivial NAND program")
         '''Initializes a list holding triples of our NAND program '''
@@ -76,7 +90,9 @@ class NANDProgram(object):
         self._allocate_or_workspace_var = self.make_allocator('OR')
         self._allocate_and_workspace_var = self.make_allocator('AND')
         self._allocate_add_workspace_var = self.make_allocator('ADD')
-        self._allocate_one_workspace_var = self.make_allocator('ONE')
+
+        self._constants_initialized = False #Have we initialized the code that generates the constant zero yet?
+
 
 # TODO: As you create more functions in this class to expand your syntactic
 #       sugar, create an allocator for each helper function so that you can
@@ -99,7 +115,8 @@ class NANDProgram(object):
         return 'Y[{}]'.format(var_num)
 
     def debugger(self, outputs, inputs):
-        self._program.append("#debug {};{};{}".format(inspect.stack()[1][3], outputs, inputs))
+        if(self._debug_enabled):
+            self._program.append("#debug {};{};{}".format(inspect.stack()[1][3], outputs, inputs))
 
     @classmethod
     def make_allocator(cls, allocation_prefix):
@@ -135,13 +152,26 @@ class NANDProgram(object):
             self.debugger([first_arg],[second_arg, third_arg])
         return output_var_name  # returns output var name to allow chaining
 
-    def ONE(self, output):
+    def ZERO(self, output):
         '''Adds the NAND lines to the end of our program to compute the
         constant one function'''
-        intermediate_1 = self._allocate_one_workspace_var()
-        self.NAND(intermediate_1, self.input_var(0), self.input_var(0))
-        self.NAND(output, intermediate_1, self.input_var(0))
+        if(self._constants_initialized):
+            self.NAND(output, 'ONE', 'ONE')
+        else:
+            self.NAND('ZERO[0]', self.input_var(0), self.input_var(0))
+            self.NAND('ONE', 'ZERO[0]', self.input_var(0))
+            self.NAND(output, 'ONE', 'ONE')
+            self._constants_initialized = True
         return output
+
+    def ONE(self, output):
+        if(self._constants_initialized):
+            self.NAND(output, 'ZERO[0]', self.input_var(0))
+        else:
+            self.NAND('ZERO[0]', self.input_var(0), self.input_var(0))
+            self.NAND('ONE', 'ZERO[0]', self.input_var(0))
+            self.NAND(output, 'ZERO[0]', self.input_var(0))
+            self._constants_initialized = True
 
     def OR(self, output, var1, var2):
         '''Adds the NAND lines to the end of our program that computes
@@ -219,18 +249,21 @@ class NANDProgram(object):
         # checks for the case in which the number of variables assigned to is
         # less than num_outputs, which is incorrect NAND, and adds extra code
         # setting the most significant output bit to 0
-        apparent_number_of_outputs = max([int(filter(str.isdigit, line[0]))
-                                          for line in self._program
-                                          if line[0][:2] == 'Y[']) + 1
-        if apparent_number_of_outputs < self._num_outputs:
-            intermediate_1 = self.allocate()
-            intermediate_2 = self.allocate()
-            self.NAND(intermediate_1, self.input_var(0), self.input_var(0))
-            self.NAND(intermediate_2, intermediate_1, self.input_var(0))
-            self.NAND(self.output_var(self._num_outputs-1),
-                      intermediate_2, intermediate_2)
+        if(len(self) == 0):
+            raise TypeError("Empty program!")
+        n,m = numinout('\n'.join([('{} = NAND({},{})').format(program_tuple[0], program_tuple[1], program_tuple[2]) if not isinstance(program_tuple, basestring) else program_tuple
+                          for program_tuple in self._program]))
+        if n > self._num_inputs:
+            raise TypeError("There are {} inputs in your NAND code but you only declared {} inputs", n, self._num_inputs) 
+        if m > self._num_outputs:
+            raise TypeError("There are {} outputs in your NAND code but you only declared {} outputs", m, self._num_outputs)
+        if n < self._num_inputs:
+            self.NAND(self.allocate(), self.input_var(self._num_inputs-1),self.input_var(self._num_inputs-1)) # adds a dummy usage of an input variable
+        if m < self._num_outputs:
+            self.ZERO(self.output_var(self._num_outputs-1))
         return '\n'.join([('{} = NAND({},{})').format(program_tuple[0], program_tuple[1], program_tuple[2]) if not isinstance(program_tuple, basestring) else program_tuple
                           for program_tuple in self._program])
 
-
+    def __len__(self):
+        return len([False for line in self._program if not isinstance(line, basestring) ])
 
