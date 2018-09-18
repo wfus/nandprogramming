@@ -19,6 +19,9 @@ def parse_tuple(string):
 def NAND(a, b):
     return (1-int(a)*int(b))
 
+def set_debug(debug_val):
+    self._debug_enabled = debug_val
+
 def TRUTH(prog):
     n,m = numinout(prog)
     if(n > 6):
@@ -127,7 +130,7 @@ class NANDProgram(object):
             return new_var
         return var_allocator
 
-    def NAND(self, first_arg, second_arg, third_arg=None):
+    def NAND(self, first_arg, second_arg, third_arg=None, debug = False):
         '''Adds a NAND line to the end of our program
         For convenience, .NAND() is overloaded. You can call it two ways:
             .NAND(<output var name>, <input1 var name>, <input2 var name>)
@@ -145,11 +148,13 @@ class NANDProgram(object):
         if third_arg is None:
             output_var_name = self.allocate()
             self._program.append((output_var_name, first_arg, second_arg))
-            self.debugger([output_var_name],[first_arg, second_arg])
+            if(debug):
+                self.debugger([output_var_name],[first_arg, second_arg])
         else:
             output_var_name = first_arg
             self._program.append((first_arg, second_arg, third_arg))
-            self.debugger([first_arg],[second_arg, third_arg])
+            if(debug):
+                self.debugger([first_arg],[second_arg, third_arg])
         return output_var_name  # returns output var name to allow chaining
 
     def ZERO(self, output):
@@ -204,7 +209,7 @@ class NANDProgram(object):
         self.OR(output, intermediate_1, var3)
         return output
 
-    def ADD_3(self, output1, output2, var1, var2, var3):
+    def ADD_3(self, output1, output2, var1, var2, var3, debug = False):
         '''Adds the NAND lines to the end of the program that outputs two
         binary digits representing the value of var1 + var2 + var3'''
         intermediate_0 = self._allocate_add_workspace_var()
@@ -239,7 +244,8 @@ class NANDProgram(object):
         self.NAND(intermediate_2, var3, intermediate_1)
         self.NAND(output1, self.NAND(self._allocate_add_workspace_var(), intermediate_1, intermediate_2), self.NAND(self._allocate_add_workspace_var(), var3, intermediate_2))
         self.NAND(output2, intermediate_0, intermediate_2)
-        self.debugger([output1, output2], [var1, var2, var3])
+        if(debug):
+            self.debugger([output1, output2], [var1, var2, var3])
 
 
     def __str__(self):
