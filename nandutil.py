@@ -178,7 +178,7 @@ class NANDProgram(object):
             self.NAND(output, 'ZERO[0]', self.input_var(0))
             self._constants_initialized = True
 
-    def OR(self, output, var1, var2):
+    def OR(self, output, var1, var2, debug = False):
         '''Adds the NAND lines to the end of our program that computes
             <output> := OR(<var1>,<var2>)'''
         intermediate_1 = self._allocate_or_workspace_var()
@@ -187,17 +187,21 @@ class NANDProgram(object):
         self.NAND(intermediate_1, var1, var1)
         self.NAND(intermediate_2, var2, var2)
         self.NAND(output, intermediate_1, intermediate_2)
-        # Return a copy of the name of your output variableto allow for
+        if(debug):
+            self.debugger([output], [var1, var2])
+        # Return a copy of the name of your output variable to allow for
         # chaining functions.
         return output
 
-    def AND(self, output, var1, var2):
+    def AND(self, output, var1, var2, debug = False):
         '''Adds the NAND lines to the end of our program that computes
             <output> := AND(<var1>,<var2>)'''
         intermediate_1 = self._allocate_and_workspace_var()
 
         self.NAND(intermediate_1, var1, var2)
         self.NAND(output, intermediate_1, intermediate_1)
+        if(debug):
+            self.debugger([output], [var1, var2])
         return output
 
     def OR_3(self, output, var1, var2, var3):
