@@ -1,3 +1,58 @@
+import inspect
+import re
+
+def numinout(prog):
+    '''Compute the number of inputs and outputs of a NAND program, given as a string of source code.'''
+    n = max([int(s[2:-1]) for s in re.findall(r'X\[\d+\]',prog)])+1
+    m = max([int(s[2:-1]) for s in re.findall(r'Y\[\d+\]',prog)])+1
+    return n,m
+
+def parse_tuple(string):
+    try:
+        s = eval(string)
+        if type(s) == list:
+            return s
+        return
+    except:
+        return
+
+def NAND(a, b):
+    return (1-int(a)*int(b))
+
+def EVAL(prog,x):
+    """Evaluate NAND program prog with n inputs and m outputs on input x."""
+    n,m = numinout(prog)
+    vartable = {} # dictionary for variables
+
+    for i in range(n): vartable['X[{}]'.format(i)]=int(x[i]) # assign x[i] to variable "X[i]"
+    for line in prog.split('\n'): # split code into lines
+        if not(line): continue  # ignore empty lines
+
+        if(line.startswith("#debug ")):
+            [component_name, raw_outvars, raw_invars] = line[len("#debug "):].split(";")
+            outvars = parse_tuple(raw_outvars)
+            invars = parse_tuple(raw_invars)
+            function_signature = "{} = {}{}".format('('+','.join(outvars)+')', component_name, '('+','.join(invars)+')')
+            function_values =  "{} = {}({})".format(''.join([str(vartable[var]) for var in outvars]), component_name, ''.join([str(vartable[var]) for var in invars]))
+            print function_signature + (" " * (25 - len(function_signature)%20) ) + function_values
+
+            continue
+
+        a = line.find('=')
+        b = line.find('(')
+        c = line.find(',')
+        d = line.find(')')
+
+        foo = line[:a].strip()
+        bar = line[b+1:c].strip()
+        blah = line[c+1:d].strip()
+
+        vartable[foo] =  NAND(vartable[bar],vartable[blah])
+
+
+    return ''.join([str(vartable['Y[{}]'.format(j)]) for j in range(m)])
+
+
 class NANDProgram(object):
     '''Builds a NAND Program in a declarative format. Some examples will be
     shown at the end of this file. Outputs the program as a string by using the
@@ -35,22 +90,23 @@ class NANDProgram(object):
 
     def input_var(self, var_num):
         if var_num < 0 or var_num >= self._num_inputs:
-            raise IndexError("Input variable is out of bounds")
-        return 'x_{}'.format(var_num)
+            raise IndexError("Input variable referenced is out of bounds")
+        return 'X[{}]'.format(var_num)
 
     def output_var(self, var_num):
         if var_num < 0 or var_num >= self._num_outputs:
-            raise IndexError("Output variable is out of bounds")
-        return 'y_{}'.format(var_num)
+            raise IndexError("Output variable referenced is out of bounds")
+        return 'Y[{}]'.format(var_num)
+
+    def debugger(self, outputs, inputs):
+        self._program.append("#debug {};{};{}".format(inspect.stack()[1][3], outputs, inputs))
 
     @classmethod
     def make_allocator(cls, allocation_prefix):
-        counter = 0
-
+        counter = {'workspace_counter' : 0}
         def var_allocator():
-            nonlocal counter
-            new_var = (allocation_prefix + '_{}').format(counter)
-            counter += 1
+            new_var = (allocation_prefix + '[{}]').format(counter['workspace_counter'])
+            counter['workspace_counter'] += 1
             return new_var
         return var_allocator
 
@@ -72,9 +128,11 @@ class NANDProgram(object):
         if third_arg is None:
             output_var_name = self.allocate()
             self._program.append((output_var_name, first_arg, second_arg))
+            self.debugger([output_var_name],[first_arg, second_arg])
         else:
             output_var_name = first_arg
             self._program.append((first_arg, second_arg, third_arg))
+            self.debugger([first_arg],[second_arg, third_arg])
         return output_var_name  # returns output var name to allow chaining
 
     def ONE(self, output):
@@ -151,6 +209,8 @@ class NANDProgram(object):
         self.NAND(intermediate_2, var3, intermediate_1)
         self.NAND(output1, self.NAND(self._allocate_add_workspace_var(), intermediate_1, intermediate_2), self.NAND(self._allocate_add_workspace_var(), var3, intermediate_2))
         self.NAND(output2, intermediate_0, intermediate_2)
+        self.debugger([output1, output2], [var1, var2, var3])
+
 
     def __str__(self):
         '''Returns the NAND program as in string form, using only NAND and
@@ -159,9 +219,9 @@ class NANDProgram(object):
         # checks for the case in which the number of variables assigned to is
         # less than num_outputs, which is incorrect NAND, and adds extra code
         # setting the most significant output bit to 0
-        apparent_number_of_outputs = max([int(line[0][2:])
+        apparent_number_of_outputs = max([int(filter(str.isdigit, line[0]))
                                           for line in self._program
-                                          if line[0][:2] == 'y_']) + 1
+                                          if line[0][:2] == 'Y[']) + 1
         if apparent_number_of_outputs < self._num_outputs:
             intermediate_1 = self.allocate()
             intermediate_2 = self.allocate()
@@ -169,44 +229,8 @@ class NANDProgram(object):
             self.NAND(intermediate_2, intermediate_1, self.input_var(0))
             self.NAND(self.output_var(self._num_outputs-1),
                       intermediate_2, intermediate_2)
-
-        return '\n'.join([('{} := {} NAND {}').format(program_tuple[0],
-                          program_tuple[1], program_tuple[2])
+        return '\n'.join([('{} = NAND({},{})').format(program_tuple[0], program_tuple[1], program_tuple[2]) if not isinstance(program_tuple, basestring) else program_tuple
                           for program_tuple in self._program])
 
 
-# TODO: Implement this function and return a string representation of its NAND
-# implementation. You don't have to use the class we supplied - you could use
-# other methods of building up your NAND program from scratch.
-def nandsquare(n):
-    '''Takes in an integer n. Outputs the string representation of a NAND prog
-    that takes in inputs x_0, ..., x_{n-1} and squares it mod 2^n. The output
-    will be y_0, ..., y_{n-1}. The first digit will be the least significant
-    digit (ex: 110001 --> 35)'''
-    # creates a blank NAND program with n inputs and n outputs.
-    prog = NANDProgram(n, n)
 
-    # now add lines to your NAND program by calling python functions like
-    # prog.NAND() or prog.OR() or other helper functions. For an example, take
-    # a look at the stuff after if __name__ == '__main__':
-
-    # "compiles" your completed program as a NAND program string.
-    return str(prog)
-
-
-def EVAL(prog,x):
-    n = max([int(var[2:]) for var in prog.split() if var[:2]=='x_' ])+1 # no of inputs
-    m = max([int(var[2:]) for var in prog.split() if var[:2]=='y_' ])+1 # no of outputs
-
-    varsval = { } # dictionary of value of "workspace" variables
-    for i in range(n):
-        varsval['x_'+str(i)] = int(x[i])
-    for j in range(m):
-        varsval['y_'+str(j)] = 0
-
-    for line in prog.split('\n'):
-        if not line.strip() or line[0]=='#' or line[0]=='//': continue # ignore empty and commented out lines
-        (var1, assign, var2, op, var3) = line.split()
-        varsval[var1] = 1 - varsval.get(var2, 0) * varsval.get(var3, 0)
-
-    return ''.join( str(varsval['y_'+str(j)]) for j in range(m))
