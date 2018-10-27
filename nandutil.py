@@ -32,7 +32,7 @@ def TRUTH(prog):
     for i in range(2**n):
         prog_in = (str(bin(i))[2:])[::-1]
         prog_in = prog_in + '0' * (n - len(prog_in))
-        print prog_in + " |   " + EVAL(prog, prog_in)
+        print(prog_in + " |   " + EVAL(prog, prog_in))
 
 def EVAL(prog,x):
     """Evaluate NAND program prog with n inputs and m outputs on input x."""
@@ -50,7 +50,8 @@ def EVAL(prog,x):
             invars = parse_tuple(raw_invars)
             function_signature = "{} = {}{}".format('('+','.join(outvars)+')', component_name, '('+','.join(invars)+')')
             function_values =  "{} = {}({})".format(''.join([str(vartable[var]) for var in outvars]), component_name, ''.join([str(vartable[var]) for var in invars]))
-            print function_signature + (" " * (25 - len(function_signature)%20) ) + function_values
+            print(function_signature + (" " * (25 - len(function_signature)%20) ) + function_values)
+
 
             continue
 
