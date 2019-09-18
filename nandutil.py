@@ -1,5 +1,11 @@
+""" Contains implementations of NAND essentials from the Jupyter Notebooks."""
 import inspect
 import re
+try:
+    basestring
+except NameError:
+    basestring = str
+
 
 def numinout(prog):
     '''Compute the number of inputs and outputs of a NAND program, given as a string of source code.'''
@@ -25,7 +31,7 @@ def set_debug(debug_val):
 def TRUTH(prog):
     n,m = numinout(prog)
     if(n > 6):
-        raise ValueError('Please limit your program input to 6 bits') 
+        raise ValueError('Please limit your program input to 6 bits')
 
     print("In" + " "*(n + m ) + "Out")
     print("-" * (n + m + 5))
@@ -44,14 +50,13 @@ def EVAL(prog,x):
     for line in prog.split('\n'): # split code into lines
         if not(line): continue  # ignore empty lines
 
-        if(line.startswith("#debug ")):
+        if line.startswith("#debug "):
             [component_name, raw_outvars, raw_invars] = line[len("#debug "):].split(";")
             outvars = parse_tuple(raw_outvars)
             invars = parse_tuple(raw_invars)
             function_signature = "{} = {}{}".format('('+','.join(outvars)+')', component_name, '('+','.join(invars)+')')
             function_values =  "{} = {}({})".format(''.join([str(vartable[var]) for var in outvars]), component_name, ''.join([str(vartable[var]) for var in invars]))
             print(function_signature + (" " * (25 - len(function_signature)%20) ) + function_values)
-
 
             continue
 
@@ -265,7 +270,7 @@ class NANDProgram(object):
         n,m = numinout('\n'.join([('{} = NAND({},{})').format(program_tuple[0], program_tuple[1], program_tuple[2]) if not isinstance(program_tuple, basestring) else program_tuple
                           for program_tuple in self._program]))
         if n > self._num_inputs:
-            raise TypeError("There are {} inputs in your NAND code but you only declared {} inputs", n, self._num_inputs) 
+            raise TypeError("There are {} inputs in your NAND code but you only declared {} inputs", n, self._num_inputs)
         if m > self._num_outputs:
             raise TypeError("There are {} outputs in your NAND code but you only declared {} outputs", m, self._num_outputs)
         if n < self._num_inputs:
@@ -278,3 +283,21 @@ class NANDProgram(object):
     def __len__(self):
         return len([False for line in self._program if not isinstance(line, basestring) ])
 
+
+def int2bin(x, length):
+    '''Convert int to x in little endian order. Returns as string. Crops to
+    length or pads with zeros at the end.'''
+    # Strip the 0b part of the string
+    xbin = bin(x)[2:]
+    xbin = xbin[::-1]
+    xbin = xbin[:length] if len(xbin) > length else xbin
+    xbin = xbin + ('0' * (length - len(xbin))) if len(xbin) < length else xbin
+    return xbin
+
+
+def bin2int(x):
+    '''Convert int to x in little endian order. Returns as string. Crops to
+    length or pads with zeros at the end.'''
+    # Strip the 0b part of the string
+    return int(x[::-1], 2)
+  
